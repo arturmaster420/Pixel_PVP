@@ -1,0 +1,9 @@
+node_modules
+dist
+apps/client/dist
+.vite
+.cache
+.DS_Store
+*.log
+.env
+.env.*
