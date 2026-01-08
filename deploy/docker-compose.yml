@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/server/Dockerfile
+    environment:
+      PORT: "8080"
+      # Toggle metrics without code changes
+      METRICS: "${METRICS:-1}"
+      METRICS_LOG_EVERY_SEC: "${METRICS_LOG_EVERY_SEC:-30}"
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    networks: [arena]
+
+  caddy:
+    image: caddy:2
+    depends_on: [server]
+    environment:
+      DOMAIN: "${DOMAIN}"
+      ACME_EMAIL: "${ACME_EMAIL:-}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Serve the already-built client bundle (apps/client/dist)
+      - ../apps/client/dist:/srv:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    networks: [arena]
+
+networks:
+  arena: {}
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}

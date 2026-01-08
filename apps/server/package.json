@@ -1,0 +1,14 @@
+{
+  "name": "apps-server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.18.0",
+    "be-try-core": "file:../../packages/core"
+  },
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "version": "0.2.37"
+}

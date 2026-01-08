@@ -1,0 +1,878 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pixel PVP</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f14; color: #d6e2ff; font-family: system-ui, sans-serif; }
+      /* In-game HUD (top-left). Keep compact: no wall-of-text. */
+      #ui {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 12;
+        font-size: 12px;
+        line-height: 1.22;
+        padding: 6px 8px;
+        border-radius: 12px;
+        background: rgba(0,0,0,0.28);
+        border: 1px solid rgba(255,255,255,0.10);
+        backdrop-filter: blur(3px);
+        pointer-events: none;
+        max-width: min(42vw, 300px);
+      }
+      #ui b { font-weight: 700; }
+      #ui .muted { opacity: 0.72; font-size: 11px; }
+      #stats { opacity: 0.92; }
+      #stats .hudCols{ display:flex; gap: 10px; }
+      #stats .hudCol{ display:flex; flex-direction:column; gap: 2px; min-width: 96px; }
+      #stats .hudCol.small{ min-width: 112px; }
+      #stats .hudHdr{ font-size: 10px; letter-spacing: 0.6px; opacity: 0.82; margin-bottom: 2px; }
+      #stats .hudLine{ font-size: 12px; line-height: 1.15; }
+      #stats .hudLine.muted{ opacity: 0.78; font-size: 11px; }
+      #lobby {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 30;
+        background: rgba(0,0,0,0.55);
+        backdrop-filter: blur(3px);
+      }
+      #lobby .panel {
+        width: min(980px, 96vw);
+        max-height: 92vh;
+        overflow: auto;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: rgba(12,16,22,0.9);
+        box-shadow: 0 12px 50px rgba(0,0,0,0.45);
+      }
+      #lobby .header { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
+      #lobby h2 { margin: 0; font-size: 18px; }
+      #lobby .muted { opacity: 0.75; font-size: 12px; line-height: 1.25; }
+      #lobby .error { color: #ff7a7a; font-size: 12px; line-height: 1.25; }
+      #lobby .cols { display:flex; gap: 12px; margin-top: 10px; }
+      #lobby .col { border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 10px; background: rgba(255,255,255,0.03); }
+      #lobby .col.left { width: 250px; }
+      #lobby .col.mid { flex: 1; min-width: 280px; }
+      #lobby .col.right { width: 280px; }
+
+      /* Profile card (left column) */
+      #lobby .profileCard{ display:flex; flex-direction:column; gap:8px; }
+
+      /* Tabs: Profile / Records */
+      #lobby .profileTabs{
+        display:flex;
+        gap:6px;
+        padding: 4px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.02);
+      }
+      #lobby .tabbtn{
+        flex: 1;
+        padding: 7px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(12,16,22,0.35);
+        color: #e9f1ff;
+        cursor: pointer;
+        font-size: 12px;
+        opacity: 0.86;
+      }
+      #lobby .tabbtn:hover{ opacity: 1; }
+      #lobby .tabbtn.sel{
+        opacity: 1;
+        background: rgba(120,170,255,0.18);
+        border-color: rgba(200,220,255,0.26);
+      }
+
+      /* Achievements list */
+      #lobby .achList{
+        display:flex;
+        flex-direction:column;
+        gap: 6px;
+        max-height: 340px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+      #lobby .achRow{
+        display:flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.02);
+        font-size: 12px;
+        line-height: 1.22;
+      }
+      #lobby .achRow .left{ min-width: 0; flex: 1 1 auto; }
+      #lobby .achRow .top{ display:flex; gap: 8px; align-items: flex-start; }
+      #lobby .achRow .ico{ width: 20px; height: 20px; display:flex; align-items:center; justify-content:center; font-size: 16px; opacity: 0.92; }
+      #lobby .achRow .twrap{ min-width: 0; }
+      #lobby .achRow .title{ font-weight: 750; font-size: 12px; display:flex; align-items:center; gap: 6px; }
+      #lobby .achRow .lvl{ font-size: 10px; padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: rgba(12,16,22,0.35); opacity: 0.86; }
+      #lobby .achRow .desc{ opacity: 0.80; font-size: 11px; margin-top: 2px; }
+      #lobby .achRow .right{ opacity: 0.86; font-size: 11px; white-space: nowrap; }
+      #lobby .achRow.claimed{
+        background: rgba(125,255,155,0.10);
+        border-color: rgba(125,255,155,0.20);
+      }
+
+
+      #lobby .achGroup{
+        margin-top: 2px;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background: rgba(120,170,255,0.10);
+        border: 1px solid rgba(200,220,255,0.16);
+        font-size: 11px;
+        opacity: 0.90;
+      }
+      #lobby .achRow.ready{
+        background: rgba(255,220,120,0.08);
+        border-color: rgba(255,220,120,0.20);
+      }
+      #lobby .achRow .right{
+        display:flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex: 0 0 auto;
+      }
+      #lobby .achRow .prog{
+        opacity: 0.85;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      #lobby .achRow .bar{
+        margin-top: 6px;
+        height: 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.22);
+        overflow: hidden;
+      }
+      #lobby .achRow .bar .fill{
+        height: 100%;
+        width: 0%;
+        background: rgba(120,170,255,0.55);
+      }
+      #lobby .achRow.ready .bar .fill{ background: rgba(255,220,120,0.55); }
+      #lobby .achRow .status{
+        opacity: 0.85;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      #lobby .achRow .reward{
+        opacity: 0.92;
+        font-size: 11px;
+        margin-top: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      #lobby .achRow .pill{
+        display:inline-flex;
+        align-items:center;
+        padding: 2px 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(12,16,22,0.32);
+        font-size: 10px;
+        opacity: 0.90;
+      }
+      #lobby .achRow .pill.muted{ opacity: 0.55; }
+      #lobby .achClaim{
+        padding: 5px 8px;
+        font-size: 11px;
+        border-radius: 10px;
+      }
+
+      /* Lobby mini menu bar (Ping + FS + Help) */
+      #lobbyMenuBar{
+        display:flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      #lobbyPingMini{
+        display: none;
+        align-items: center;
+        padding: 6px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(12,16,22,0.35);
+        color: rgba(233,241,255,0.85);
+        font-size: 12px;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      #lobby #profileTabProfile,
+      #lobby #profileTabRecords,
+      #lobby #profileTabAchievements{
+        display:flex;
+        flex-direction:column;
+        gap: 8px;
+      }
+
+      #lobby .profileTop{ display:flex; gap:8px; align-items:flex-start; }
+      #lobby .profileAvatarPreview{
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size: 24px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.12);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+        flex: 0 0 auto;
+      }
+      #lobby .profileTopRight{ flex:1; min-width:0; }
+      #lobby .profileNameRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      /* Keep nickname input compact (so the whole Profile panel fits smaller screens). */
+      #lobby .profileNameRow input#nameInput{ flex:0 0 auto; width:150px; max-width:100%; min-width:0; padding:6px 8px; font-size:13px; }
+      @media (max-width: 520px){
+        #lobby .profileNameRow input#nameInput{ width:120px; }
+      }
+      #lobby .chipRow{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+      #lobby .chip{
+        display:inline-flex;
+        gap:6px;
+        align-items:baseline;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.03);
+        font-size: 12px;
+        line-height: 1.1;
+      }
+      #lobby .chip .k{ opacity:0.65; font-size:11px; }
+      #lobby .xpbar{
+        height: 6px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        margin-top: 6px;
+      }
+      #lobby #profXpBar{
+        height: 100%;
+        width: 0%;
+        background: rgba(120,170,255,0.55);
+      }
+      #lobby .profileGrid{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-top: 8px;
+      }
+      #lobby .profileGrid .cell{
+        padding: 6px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.02);
+      }
+      #lobby .profileGrid .cell .k{ opacity:0.70; font-size: 11px; line-height: 1.2; }
+      #lobby .profileGrid .cell .v{ font-weight: 700; font-size: 13px; margin-top: 2px; }
+
+      #lobby label { opacity: 0.9; font-size: 13px; }
+      #lobby .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+      #lobby input[type="text"] {
+        flex: 1;
+        min-width: 180px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.06);
+        color: #e9f1ff;
+        outline: none;
+      }
+      #lobby select.select {
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.06);
+        color: #e9f1ff;
+        outline: none;
+        font-size: 13px;
+      }
+      #lobby select.select option[disabled]{ opacity:0.55; }
+      #lobby input[type="color"] {
+        width: 44px;
+        height: 36px;
+        border: none;
+        padding: 0;
+        background: transparent;
+      }
+      #lobby .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+      #lobby .swatch {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.22);
+        cursor: pointer;
+      }
+
+      #lobby .avatars {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        max-height: 88px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      #lobby .avbtn {
+        width: 32px;
+        height: 26px;
+        padding: 0;
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      #lobby #btnJoinLeft{ width: 100%; justify-content: center; padding: 8px 10px; font-size: 12px; margin-top: 6px; }
+      #lobby .avbtn.sel { outline: 2px solid rgba(255,255,255,0.55); }
+      #lobby .avbtn.locked { opacity: 0.28; filter: grayscale(1); cursor: not-allowed; }
+      #lobby .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(120,170,255,0.14);
+        color: #e9f1ff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #lobby .btn:hover { background: rgba(120,170,255,0.20); }
+      /* Primary CTA */
+      #lobby #btnQuickPlay { background: rgba(120,170,255,0.26); border-color: rgba(200,220,255,0.30); }
+      #lobby #btnQuickPlay:hover { background: rgba(120,170,255,0.32); }
+      #lobby .midButtons { display:flex; gap:8px; justify-content:flex-end; margin-top: 10px; }
+      #lobby #lobbyPlayers { width:100%; font-size:13px; opacity:0.95; }
+      #lobby #weaponVote .wbtn { padding: 8px 10px; font-size: 13px; }
+      #lobby #weaponVote .wbtn.sel { background: rgba(120,170,255,0.28); border-color: rgba(200,220,255,0.55); }
+      #lobby #weaponVote .count { opacity: 0.85; margin-left: 6px; font-size: 12px; }
+
+      #lobby #mapVote .mbtn { padding: 8px 10px; font-size: 13px; }
+      #lobby #mapVote .mbtn.sel { background: rgba(120,170,255,0.28); border-color: rgba(200,220,255,0.55); }
+      #lobby #mapVote .count { opacity: 0.85; margin-left: 6px; font-size: 12px; }
+
+      /* Mobile portrait: stack columns */
+      @media (orientation: portrait) and (max-width: 900px) {
+        #lobby .panel { width: min(560px, 92vw); padding: 12px 12px; }
+        #lobby .cols { flex-direction: column; }
+        #lobby .col.left, #lobby .col.right { width: auto; }
+        #lobby .col.mid { min-width: 0; }
+        #lobby .avatars{ max-height: 84px; }
+      }
+
+      /* Mobile landscape: keep 3 columns (like PC) but tighter */
+      @media (orientation: landscape) and (max-width: 900px) {
+        #lobby .panel { width: min(980px, 98vw); padding: 10px 10px; }
+        #lobby .cols { gap: 8px; }
+        #lobby .col { padding: 8px 8px; }
+        #lobby .col.left { width: 210px; }
+        #lobby .col.right { width: 230px; }
+        #lobby h2 { font-size: 16px; }
+        #lobby label { font-size: 12px; }
+        #lobby input[type="text"] { padding: 8px 10px; }
+        #lobby .btn { padding: 8px 10px; }
+        #lobby #weaponVote .wbtn { padding: 7px 8px; font-size: 12px; }
+        #lobby #mapVote .mbtn { padding: 7px 8px; font-size: 12px; }
+      }
+
+      #results {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+        background: rgba(0,0,0,0.62);
+        backdrop-filter: blur(3px);
+      }
+      #results .panel {
+        width: min(720px, 92vw);
+        max-height: min(82vh, 680px);
+        overflow: auto;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: rgba(12,16,22,0.9);
+        box-shadow: 0 12px 50px rgba(0,0,0,0.45);
+      }
+      #results h2 { margin: 0 0 10px; font-size: 18px; }
+      #results .row { display: flex; gap: 10px; flex-wrap: wrap; opacity: 0.9; font-size: 13px; margin-bottom: 10px; }
+      #results table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      #results th, #results td { text-align: left; padding: 6px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      #results th { opacity: 0.85; font-weight: 600; }
+      #results .btn {
+        margin-top: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(120,170,255,0.14);
+        color: #e9f1ff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #results .btn:hover { background: rgba(120,170,255,0.20); }
+      canvas { display:block; touch-action: none; }
+    
+      #weaponVote .wbtn { padding: 8px 10px; font-size: 13px; }
+      #weaponVote .wbtn.sel { background: rgba(120,170,255,0.28); border-color: rgba(200,220,255,0.55); }
+      #weaponVote .count { opacity: 0.85; margin-left: 6px; font-size: 12px; }
+
+      /* Network status banner (reconnect UX) */
+      #netBanner{
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 45;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(12,16,22,0.86);
+        backdrop-filter: blur(4px);
+        box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+        pointer-events: auto;
+      }
+      #netBanner .txt { font-size: 13px; opacity: 0.92; }
+      #netBanner button{
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(120,170,255,0.14);
+        color: #e9f1ff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #netBanner button:hover { background: rgba(120,170,255,0.20); }
+      @media (max-width: 520px){
+        #netBanner{ top: 10px; padding: 7px 9px; gap: 8px; }
+        #netBanner .txt{ font-size: 12px; }
+        #netBanner button{ padding: 6px 8px; font-size: 12px; }
+      }
+
+      /* Portal wrapper (P0): press-to-start + fullscreen + background throttle */
+      #portalOverlay{
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.68);
+        backdrop-filter: blur(4px);
+      }
+      #portalOverlay .panel{
+        width: min(520px, 92vw);
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 14px;
+        padding: 14px 16px;
+        background: rgba(12,16,22,0.92);
+        box-shadow: 0 16px 60px rgba(0,0,0,0.55);
+        text-align: center;
+      }
+      #portalOverlay h2{ margin: 0 0 8px; font-size: 18px; }
+      #portalOverlay .muted{ opacity: 0.82; font-size: 13px; line-height: 1.35; }
+      #portalOverlay .row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 12px; }
+      #portalOverlay .btn{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(120,170,255,0.16);
+        color: #e9f1ff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #portalOverlay .btn:hover{ background: rgba(120,170,255,0.22); }
+
+      #portalBar{
+        position: fixed;
+        top: 10px;
+        right: 10px; /* dynamically shifted left of the radar (JS sets right offset) */
+        z-index: 15;
+        display: flex;
+        gap: 8px;
+        pointer-events: auto;
+      }
+      #pingMini{
+        display: none;
+        align-items: center;
+        padding: 6px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(12,16,22,0.35);
+        color: rgba(233,241,255,0.85);
+        font-size: 12px;
+        pointer-events: none;
+        user-select: none;
+      }
+      #portalBar button{
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(12,16,22,0.60);
+        color: #e9f1ff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #portalBar button:hover{ background: rgba(12,16,22,0.78); }
+      @media (max-width: 520px){
+        #portalBar{ top: 8px; right: 8px; gap: 6px; }
+        #portalBar button{ padding: 6px 8px; font-size: 12px; }
+        #pingMini{ padding: 5px 7px; font-size: 11px; }
+      }
+
+      /* Help / mini-tutorial overlay */
+      #helpOverlay{
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.70);
+        backdrop-filter: blur(4px);
+      }
+      #helpOverlay .panel{
+        width: min(620px, 94vw);
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 14px;
+        padding: 14px 16px;
+        background: rgba(12,16,22,0.94);
+        box-shadow: 0 16px 60px rgba(0,0,0,0.55);
+      }
+      #helpOverlay h2{ margin: 0 0 8px; font-size: 18px; }
+      #helpOverlay .muted{ opacity: 0.82; font-size: 13px; line-height: 1.35; }
+      #helpOverlay ul{ margin: 10px 0 0; padding-left: 18px; opacity: 0.92; font-size: 14px; }
+      #helpOverlay li{ margin: 6px 0; }
+      #helpOverlay .row{ display:flex; gap:10px; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-top: 12px; }
+      #helpOverlay label{ opacity: 0.90; font-size: 13px; }
+      #helpOverlay .btn{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(120,170,255,0.16);
+        color: #e9f1ff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #helpOverlay .btn:hover{ background: rgba(120,170,255,0.22); }
+
+      /* Fatal error overlay (release safety net) */
+      #fatalOverlay{
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.78);
+        backdrop-filter: blur(4px);
+      }
+      #fatalOverlay .panel{
+        width: min(680px, 94vw);
+        background: rgba(15,18,28,0.92);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 14px;
+        padding: 14px 14px 12px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      }
+      #fatalOverlay h2{ margin: 0 0 6px; font-size: 18px; }
+      #fatalOverlay .muted{ opacity: 0.85; font-size: 13px; margin-bottom: 8px; }
+      #fatalOverlay pre{
+        margin: 8px 0 10px;
+        padding: 10px;
+        border-radius: 10px;
+        background: rgba(0,0,0,0.35);
+        border: 1px solid rgba(255,255,255,0.10);
+        max-height: 42vh;
+        overflow: auto;
+        white-space: pre-wrap;
+        font-size: 12px;
+        line-height: 1.35;
+        opacity: 0.95;
+      }
+      #fatalOverlay .row{ display: flex; gap: 10px; justify-content: flex-end; }
+      #fatalOverlay .btn{
+        padding: 9px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(120,170,255,0.14);
+        color: #fff;
+        cursor: pointer;
+        user-select: none;
+      }
+      #fatalOverlay .btn:hover{ background: rgba(120,170,255,0.22); }
+
+</style>
+    <script type="module" crossorigin src="./assets/index-Dur9Gi3o.js"></script>
+  </head>
+  <body>
+    <div id="portalOverlay">
+      <div class="panel">
+        <h2>Press to start</h2>
+        <div class="muted">Some browsers require a click/tap before audio & fullscreen can work properly.</div>
+        <div class="row">
+          <button class="btn" id="btnPortalStart" type="button">Start</button>
+          <button class="btn" id="btnPortalFullscreen" type="button">Fullscreen</button>
+        </div>
+        <div class="muted" style="margin-top:10px">Tip: Enter in Room Code = Join</div>
+      </div>
+    </div>
+
+    <div id="portalBar">
+      <div id="pingMini">Ping: --</div>
+      <button id="btnFullscreen" type="button" title="Toggle fullscreen">Fullscreen</button>
+      <button id="btnHelp" type="button" title="How to play">Help</button>
+    </div>
+
+    <div id="helpOverlay">
+      <div class="panel">
+        <h2>How to play</h2>
+        <div class="muted">Fast rounds • Storm closes in • Respawn enabled</div>
+        <ul>
+          <li><b>Move</b>: WASD / arrows (PC) • joystick (mobile)</li>
+          <li><b>Aim</b>: mouse (PC) • direction you move (touch)</li>
+          <li><b>Shoot</b>: automatic while aiming (stay on target)</li>
+          <li><b>Orbs</b>: collect to gain XP and level up</li>
+          <li><b>Storm</b>: stay inside the circle or you take damage</li>
+          <li><b>Respawn</b>: after death you come back (5s timer)</li>
+        </ul>
+        <div class="row">
+          <label><input id="helpDontShow" type="checkbox" style="width:16px;height:16px; vertical-align:middle; margin-right:6px;" />Don't show again</label>
+          <div style="display:flex; gap:10px;">
+            <button class="btn" id="btnHelpClose" type="button">Got it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="fatalOverlay">
+      <div class="panel">
+        <h2>Something went wrong</h2>
+        <div class="muted" id="fatalSummary">An unexpected error occurred.</div>
+        <pre id="fatalDetails" aria-label="Debug details"></pre>
+        <div class="row">
+          <button class="btn" id="btnFatalCopy" type="button">Copy debug</button>
+          <button class="btn" id="btnFatalReload" type="button">Reload</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="ui">
+      <div><b>Pixel PVP</b> <span class="muted" id="buildTag"></span></div>
+      <div id="stats">Connecting...</div>
+    </div>
+
+
+    <div id="netBanner">
+      <div class="txt" id="netStatusText">Connecting...</div>
+      <button id="btnRetryNet" type="button">Retry</button>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <div class="header">
+          <h2>Pixel PVP</h2>
+          <div id="lobbyMenuBar">
+            <div id="lobbyPingMini">Ping: --</div>
+            <button class="btn" id="btnMenuFullscreen" type="button" style="padding:7px 10px; font-size:12px;">FS</button>
+            <button class="btn" id="btnMenuHelp" type="button" style="padding:7px 10px; font-size:12px;">Help</button>
+          </div>
+        </div>
+
+        <div class="cols">
+                    <!-- Left: profile -->
+          <div class="col left">
+            <div class="profileCard">
+              <div class="profileTabs" role="tablist" aria-label="Profile tabs">
+                <button class="tabbtn sel" id="tabProfileBtn" type="button" role="tab" aria-selected="true">Profile</button>
+                <button class="tabbtn" id="tabRecordsBtn" type="button" role="tab" aria-selected="false">Records</button>
+                <button class="tabbtn" id="tabAchievementsBtn" type="button" role="tab" aria-selected="false">Achievements</button>
+              </div>
+
+              <div id="profileTabProfile" role="tabpanel">
+              <div class="profileTop">
+                <div class="profileAvatarPreview" id="profileAvatarPreview">🙂</div>
+                <div class="profileTopRight">
+                  <div class="profileNameRow">
+                    <input id="nameInput" type="text" maxlength="16" placeholder="Name" />
+                  </div>
+
+                  <div class="chipRow" aria-label="Profile summary">
+                    <div class="chip"><span class="k">L</span><span id="profLevel">1</span></div>
+                    <div class="chip"><span class="k">XP</span><span id="profXp">0</span></div>
+                    <div class="chip"><span class="k">Av</span><span id="profAv">0/0</span></div>
+                  </div>
+
+                  <div class="xpbar" title="XP progress to next level"><div id="profXpBar"></div></div>
+                  <div class="muted" id="profNext" style="margin-top:4px; min-height:0; font-size:11px; line-height:1.2;">&nbsp;</div>
+                
+                  <div class="row" style="margin-top:6px; gap:8px; align-items:center;">
+                    <label style="min-width:54px; opacity:0.85;">Aura</label>
+                    <select id="auraSelect" class="select" style="flex:1; min-width:0;"></select>
+                  </div>
+                  <div class="row" style="margin-top:6px; gap:8px; align-items:center;">
+                    <label style="min-width:54px; opacity:0.85;">Trail</label>
+                    <select id="trailSelect" class="select" style="flex:1; min-width:0;"></select>
+                  </div>
+</div>
+              </div>
+              <div style="margin-top:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <div><b>Avatars</b> <span class="muted" id="profAvatarHint"></span></div>
+                </div>
+                <div class="avatars" id="avatarButtons"></div>
+              </div>
+
+              </div>
+
+              <div id="profileTabRecords" role="tabpanel" style="display:none;">
+                <div class="profileGrid" aria-label="Records">
+                  <div class="cell"><div class="k">ScoreWins</div><div class="v" id="profScoreWins">0</div></div>
+                  <div class="cell"><div class="k">LastWins</div><div class="v" id="profLastWins">0</div></div>
+                  <div class="cell"><div class="k">Matches</div><div class="v" id="profMatches">0</div></div>
+
+                  <div class="cell"><div class="k">ScoreWin%</div><div class="v" id="profScoreWinRate">0</div></div>
+                  <div class="cell"><div class="k">LastWin%</div><div class="v" id="profLastWinRate">0</div></div>
+                  <div class="cell"><div class="k">Best streak</div><div class="v" id="profBest">0</div></div>
+
+                  <div class="cell"><div class="k">K</div><div class="v" id="profKills">0</div></div>
+                  <div class="cell"><div class="k">D</div><div class="v" id="profDeaths">0</div></div>
+                  <div class="cell"><div class="k">A</div><div class="v" id="profAssists">0</div></div>
+
+                  <div class="cell" style="grid-column: 1 / span 3;">
+                    <div class="k">Best ScoreWinStreak</div>
+                    <div class="v" id="profBestScoreWinStreak">0</div>
+                  </div>
+                  <div class="cell" style="grid-column: 1 / span 3;">
+                    <div class="k">Best LastWinStreak</div>
+                    <div class="v" id="profBestLastWinStreak">0</div>
+                  </div>
+                  <div class="cell" style="grid-column: 1 / span 3;">
+                    <div class="k">Best buffs/match</div>
+                    <div class="v" id="profBestBuffs">0</div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div id="profileTabAchievements" role="tabpanel" style="display:none;">
+                <div class="muted" style="font-size:12px; opacity:0.82; margin-bottom:4px;">Здесь показывается только текущий уровень ачивок. Выполненные можно забрать кнопкой Claim, забранные — внизу списка.</div>
+                <div class="achList" id="achList"></div>
+              </div>
+
+              <button class="btn" id="btnJoinLeft" type="button" title="Apply nickname & avatar">Apply</button>
+            </div>
+          </div>
+
+<!-- Center: lobby -->
+          <div class="col mid">
+            <div class="row" style="margin-top:2px;">
+              <label for="roomCodeInput">Room Code</label>
+              <input id="roomCodeInput" type="text" maxlength="8" placeholder="(optional)" autocapitalize="characters" autocomplete="off" spellcheck="false" />
+              <button class="btn" id="btnJoin" type="button" style="padding:8px 10px; white-space:nowrap;">Apply</button>
+              <button class="btn" id="btnCopyInvite" style="padding:8px 10px; white-space:nowrap;">Copy invite link</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:-2px; min-height:14px;">
+              <div class="muted" id="roomCodeStatus">Public lobby</div>
+              <button class="btn" id="btnGoPublic" type="button" style="display:none; padding:6px 10px; font-size:12px; white-space:nowrap;">Go Public</button>
+            </div>
+                        <div class="muted" id="inviteHint" style="margin-top:2px; min-height:14px;"></div>
+<div class="error" id="joinError" style="min-height:14px;"></div>
+            <div id="lobbyPlayers"></div>
+            <div class="midButtons">
+              <button class="btn" id="btnQuickPlay" title="Join public lobby, enable bots, and auto-ready">Quick Play</button>
+              <button class="btn" id="btnReady" style="display:none;">Ready</button>
+            </div>
+            <div class="muted" id="lobbyStatus" style="margin-top:8px;">&nbsp;</div>
+            <div class="muted" id="lobbyInfo" style="margin-top:6px; font-size:12px; opacity:0.85;">Connecting...</div>
+          </div>
+
+          <!-- Right: settings -->
+          <div class="col right">
+            <div class="row" style="margin-top: 2px;">
+              <label for="botsToggle">Bots</label>
+              <input id="botsToggle" type="checkbox" checked style="width:18px;height:18px;" />
+              <select id="botsCount" title="Bot count" style="height:28px; padding:2px 6px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.18); color:rgba(255,255,255,0.9); font-size:12px;">
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="6">6</option>
+              </select>
+              <div class="muted" id="botsLabel">2 bots</div>
+            </div>
+
+            <div class="row" style="margin-top: 2px;">
+              <label for="fxToggle">Low FX</label>
+              <input id="fxToggle" type="checkbox" style="width:18px;height:18px;" />
+              <div class="muted" style="font-size:12px; opacity:0.75;">helps low-end</div>
+            </div>
+
+            <div class="row" style="margin-top:6px;">
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <div><b>Weapon vote</b></div>
+                </div>
+                <div id="weaponVote" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+                <div class="muted" id="weaponVoteStatus" style="margin-top:6px; font-size:12px; opacity:0.82;">—</div>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:10px;">
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <div><b>Map vote</b></div>
+                </div>
+                <div id="mapVote" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+                <div class="muted" id="mapVoteStatus" style="margin-top:6px; font-size:12px; opacity:0.82;">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="results">
+      <div class="panel">
+        <h2>Match Results</h2>
+        <div class="row" id="resultsSummary"></div>
+        <div id="resultsTable"></div>
+        <button class="btn" id="btnAgain">Back to lobby</button>
+      </div>
+    </div>
+
+    <canvas id="c"></canvas>
+  </body>
+</html>

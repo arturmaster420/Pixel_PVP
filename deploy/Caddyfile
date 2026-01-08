@@ -1,0 +1,14 @@
+{
+  # Optional. If empty, Caddy will use its default.
+  email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+  encode zstd gzip
+
+  root * /srv
+  file_server
+
+  @ws path /ws
+  reverse_proxy @ws server:8080
+}

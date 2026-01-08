@@ -1,0 +1,19 @@
+{
+  "name": "be-try-arena",
+  "private": true,
+  "version": "0.2.37",
+  "scripts": {
+    "install:all": "npm --prefix apps/server install && npm --prefix apps/client install",
+    "dev": "concurrently --kill-others --kill-others-on-fail -n server,client -c green,cyan \"npm --prefix apps/server run dev\" \"npm --prefix apps/client run dev\"",
+    "dev:server": "npm --prefix apps/server run dev",
+    "dev:client": "npm --prefix apps/client run dev",
+    "build": "npm --prefix apps/client run build",
+    "start": "npm --prefix apps/server run start",
+    "postinstall": "npm run install:all",
+    "dev:lan": "concurrently --kill-others --kill-others-on-fail -n server,client -c green,cyan \"npm --prefix apps/server run dev\" \"npm --prefix apps/client run dev -- --host 0.0.0.0 --port 5173\"",
+    "smoke": "node apps/server/scripts/smoke_ws.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

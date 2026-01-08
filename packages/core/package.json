@@ -1,0 +1,8 @@
+{
+  "name": "be-try-core",
+  "version": "0.1.9",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  }
+}
